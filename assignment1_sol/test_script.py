@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import scipy.io
 import time
+import numpy as np
 
 from ex1_functions import *
 def tic():
@@ -34,6 +35,10 @@ tt = time.time()
 H_naive = compute_homography_naive(match_p_src, match_p_dst)
 print('Naive Homography {:5.4f} sec'.format(toc(tt)))
 print(H_naive)
+
+match_p_src_np = convert_to_numpy(match_p_src)
+H_naive_mul_src = np.matmul(H_naive, match_p_src_np)
+
 
 # Test naive homography
 tt = time.time()
