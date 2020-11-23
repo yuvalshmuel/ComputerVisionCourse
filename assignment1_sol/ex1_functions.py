@@ -1,4 +1,8 @@
 import numpy as np
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+import matplotlib
 
 
 def convert_to_numpy(scipy_points):
@@ -12,7 +16,7 @@ def convert_to_numpy(scipy_points):
     points = np.empty((0, num_points), np.double)
     points = np.append(points, np.array([scipy_points[0]]), axis=0)
     points = np.append(points, np.array([scipy_points[1]]), axis=0)
-    points = np.append(points, np.array([1]*num_points), axis=0)
+    points = np.append(points,np.array([[1]*num_points]), axis=0)
     return points
 
 def find_image_size(points):
@@ -25,6 +29,25 @@ def find_image_size(points):
     max_x = np.max(points[0,:])
     max_y = np.max(points[1,:])
     return min_x, min_y, max_x, max_y
+
+
+def ptont_images_with_points(mp_src,mp_dst):
+    """ """
+    # import the images
+    img_src = mpimg.imread('src.jpg')
+    img_dst = mpimg.imread('dst.jpg')
+    # gather points
+    src_points = convert_to_numpy(mp_src)
+    dst_points = convert_to_numpy(mp_dst)
+    # image plot
+    f, axarr = plt.subplots(1, 2)
+    axarr[0].imshow(img_src)
+    axarr[1].imshow(img_dst)
+    for each in src_points.T:
+        axarr[0].scatter([each[0]], [each[1]], s=2)
+    axarr[1].imshow(img_dst)
+    for each in dst_points.T:
+        axarr[1].scatter([each[0]], [each[1]], s=2)
 
 ####################################
 # Part A
@@ -40,6 +63,7 @@ def compute_homography_naive(mp_src, mp_dst):
 
     :return: H - Projective transformation matrix from src to dst
     """
+    
     num_points = len(mp_src[0])
     matches_matrix = np.empty((0, 9), np.double)
 
