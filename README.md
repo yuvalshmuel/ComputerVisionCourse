@@ -1,2 +1,2 @@
-# VomputerVisionCourse
-VomputerVisionCourse  - Tel Aviv University 
+# ComputerVisionCourse
+ComputerVisionCourse  - Tel Aviv University 
