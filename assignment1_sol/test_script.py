@@ -30,6 +30,8 @@ matches = scipy.io.loadmat('matches_perfect') #loading perfect matches
 match_p_dst = matches['match_p_dst'].astype(float)
 match_p_src = matches['match_p_src'].astype(float)
 
+ptont_images_with_points(match_p_src, match_p_dst)
+
 # Compute naive homography
 tt = time.time()
 H_naive = compute_homography_naive(match_p_src, match_p_dst)
@@ -37,8 +39,15 @@ print('Naive Homography {:5.4f} sec'.format(toc(tt)))
 print(H_naive)
 
 match_p_src_np = convert_to_numpy(match_p_src)
-H_naive_mul_src = np.matmul(H_naive, match_p_src_np)
-
+mapped_points = np.matmul(H_naive, match_p_src_np)  # 3xN mapped points
+mapped_points = np.divide(mapped_points, mapped_points[2,:])
+print(mapped_points)
+# find_image_size(mapped_points[0:1,:])
+im_out = cv2.warpPerspective(img_src, H_naive, (img_dst.shape[1], img_dst.shape[0]))
+f, axarr = plt.subplots(1, 1)
+#axarr.axis('off')
+axarr.imshow(im_out)
+plt.show()
 
 # Test naive homography
 tt = time.time()
