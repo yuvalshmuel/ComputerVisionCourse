@@ -5,7 +5,6 @@ import matplotlib.transforms as mtransforms
 import cv2
 
 
-
 def convert_to_numpy(scipy_points):
     """
     :param scipy_points: 2xN array, row 1 are x values of the points and
@@ -66,6 +65,25 @@ def compute_homography_naive(mp_src, mp_dst):
 
     :return: H - Projective transformation matrix from src to dst
     """
+
+    ########### test  with CV2 ############
+    # https://www.learnopencv.com/homography-examples-using-opencv-python-c/
+    # import the images
+    img_src = mpimg.imread('src.jpg')
+    img_dst = mpimg.imread('dst.jpg')
+    # use cv2
+    h_real , status_real = cv2.findHomography(mp_src.T,mp_dst.T)
+    checkPoint = np.dot(h_real, np.append(mp_src.T[0], 1))
+    checkPoint /= checkPoint[2] # to affine
+
+    # plot and calculate the src image to the dst coordinats
+    result = cv2.warpPerspective(img_src, h_real,(img_dst.shape[0],img_dst.shape[1]))
+    f, axarr = plt.subplots(1, 3)
+    axarr[0].imshow( img_src)
+    axarr[1].imshow( img_dst)
+    axarr[2].imshow(result) # plot src image
+    #######################
+
     num_points = len(mp_src[0])
     matches_matrix = np.empty((0, 9), np.double)
 
@@ -80,7 +98,7 @@ def compute_homography_naive(mp_src, mp_dst):
         matches_matrix = np.append(matches_matrix, row2, axis=0)
     # compute A'A - 9x9 matrix
     matches_matrix_tilde = np.matmul(np.transpose(matches_matrix), matches_matrix)
-    # compute SVD to get the first eigen vector
+    # compute SVD to get the first eigen vector - s is the eigenvalues
     u, s, vh = np.linalg.svd(matches_matrix_tilde, full_matrices=True)
     print(u)
     print(s)
