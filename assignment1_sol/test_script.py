@@ -25,8 +25,8 @@ inliers_percent = 0.8
 # Read the data:
 img_src = mpimg.imread('src.jpg')
 img_dst = mpimg.imread('dst.jpg')
-# matches = scipy.io.loadmat('matches') #matching points and some outliers
-matches = scipy.io.loadmat('matches_perfect') #loading perfect matches
+matches = scipy.io.loadmat('matches') #matching points and some outliers
+# matches = scipy.io.loadmat('matches_perfect') #loading perfect matches
 match_p_dst = matches['match_p_dst'].astype(float)
 match_p_src = matches['match_p_src'].astype(float)
 
@@ -60,8 +60,6 @@ fit_percent, dist_mse = test_homography(H_naive, match_p_src, match_p_dst, max_e
 print('Naive Homography Test {:5.4f} sec'.format(toc(tt)))
 print([fit_percent, dist_mse])
 
-exit(1)
-
 # Compute RANSAC homography
 tt = tic()
 H_ransac = compute_homography(match_p_src, match_p_dst, inliers_percent, max_err)
@@ -73,6 +71,23 @@ tt = tic()
 fit_percent, dist_mse = test_homography(H_ransac, match_p_src, match_p_dst, max_err)
 print('RANSAC Homography Test {:5.4f} sec'.format(toc(tt)))
 print([fit_percent, dist_mse])
+
+image_corners = convert_to_numpy(find_image_corners(img_src))
+image_corners_mapped = np.matmul(H_ransac, image_corners)  # 3x4 image corners after being mapped with the homography
+image_corners_mapped = np.divide(image_corners_mapped, image_corners_mapped[2,:])  # divide by the last row
+# find_image_size(mapped_points[0:1,:])
+min_x = np.min(image_corners_mapped[0,:])
+min_y = np.min(image_corners_mapped[1,:])
+min_x = int(min_x)
+min_y = int(min_y)
+img_src_padded = cv2.copyMakeBorder(img_src, -min_y if min_y < 0 else 0, 0, -min_x if min_x < 0 else 0, 0, cv2.BORDER_CONSTANT)
+img_src_mapped = cv2.warpPerspective(img_src_padded, H_ransac, (img_src.shape[1], img_src.shape[0]))
+f, axarr = plt.subplots(1, 1)
+plt.axis('off')
+axarr.imshow(img_src_mapped)
+plt.show()
+
+exit(0)
 
 # Build panorama
 tt = tic()

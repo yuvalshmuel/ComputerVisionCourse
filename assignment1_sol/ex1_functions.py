@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import matplotlib.transforms as mtransforms
 import cv2
+import math
 
 
 def find_image_corners(img):
@@ -151,31 +152,52 @@ def test_homography(H, mp_src, mp_dst, max_err):
     dst_points = convert_to_numpy(mp_dst)
 
     dist = np.sqrt(np.sum((src_points_mapped - dst_points) ** 2, axis=0))
-    print(dist)
     num_inliers = np.count_nonzero(dist < max_err)
-    print(num_inliers)
     num_points = len(mp_src[0])
-    print(num_points)
-    print(num_inliers / num_points)
     fit_percent = num_inliers / num_points
-    mse = (1 / num_points) * np.sum((np.array((dist < max_err), dtype=int) * dist) ** 2, axis=0)
-    return fit_percent, mse
+    # dist_mse = (1 / num_inliers) * np.sum((np.array((dist < max_err), dtype=int) * dist) ** 2, axis=0)
+    dist_mse = (1 / num_inliers) * np.sum((np.array([1] * num_points, dtype=int) * dist) ** 2, axis=0)
+    print("inliers [{}] total [{}] mse [{}]".format(num_inliers, num_points, dist_mse))
+    return fit_percent, dist_mse
 
 
 def compute_homography(mp_src, mp_dst, inliers_percent, max_err):
     """
     :param mp_src: A variable containing 2 rows and N columns, where the i column
-represents coordinates of match point i in the src image.
+    represents coordinates of match point i in the src image.
     :param mp_dst: A variable containing 2 rows and N columns, where the i column
-represents coordinates of match point i in the dst image.
+    represents coordinates of match point i in the dst image.
     :param inliers_percent: The expected probability (between 0 and 1) of correct match points
-from the entire list of match points.
+    from the entire list of match points.
     :param max_err: A scalar that represents the maximum distance (in pixels) between
-the mapped src point to its corresponding dst point, in order to be
-considered as valid inlier.
+    the mapped src point to its corresponding dst point, in order to be
+    considered as valid inlier.
     :return:
     H – Projective transformation matrix from src to dst.
     """
+    p = 0.99  # we require 95% success probability from RANSAC algorithm
+    n = 4  # we need 4 matching pairs of points to solve an homography
+    prob_any_outlier = 1 - math.pow(inliers_percent, n)
+    num_iterations = math.ceil(math.log(1 - p) / math.log(prob_any_outlier))
+    print("num_iterations [{}]".format(num_iterations))
+
+    num_points = len(mp_src[0])
+
+    mse_best = None
+    H_best = None
+    for i in range(num_iterations):
+        # randomly pick 4 matching points
+        picked_indices = np.random.choice(num_points, n, replace=False)
+        mp_src_pick = mp_src[:, picked_indices]
+        mp_dst_pick = mp_dst[:, picked_indices]
+        H = compute_homography_naive(mp_src_pick, mp_dst_pick)
+        fit_percent, mse = test_homography(H, mp_src, mp_dst, max_err)
+        if H_best is None or mse < mse_best:
+            mse_best = mse
+            H_best = H
+
+    print("best mse [{}]".format(mse_best))
+    return H_best
 
 
 ####################################
