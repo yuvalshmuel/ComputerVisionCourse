@@ -5,6 +5,13 @@ import matplotlib.transforms as mtransforms
 import cv2
 
 
+def find_image_corners(img):
+    width = img.shape[1]
+    height = img.shape[0]
+    corners = [[0, 0, height, height], [0, width, width, 0]]
+    return corners
+
+
 def convert_to_numpy(scipy_points):
     """
     :param scipy_points: 2xN array, row 1 are x values of the points and
@@ -65,26 +72,8 @@ def compute_homography_naive(mp_src, mp_dst):
 
     :return: H - Projective transformation matrix from src to dst
     """
-
-    ########### test  with CV2 ############
-    # https://www.learnopencv.com/homography-examples-using-opencv-python-c/
-    # import the images
-    img_src = mpimg.imread('src.jpg')
-    img_dst = mpimg.imread('dst.jpg')
-    # use cv2
-    h_real , status_real = cv2.findHomography(mp_src.T,mp_dst.T)
-    checkPoint = np.dot(h_real, np.append(mp_src.T[0], 1))
-    checkPoint /= checkPoint[2] # to affine
-
-    # plot and calculate the src image to the dst coordinats
-    result = cv2.warpPerspective(img_src, h_real,(img_dst.shape[0],img_dst.shape[1]))
-    f, axarr = plt.subplots(1, 3)
-    axarr[0].imshow( img_src)
-    axarr[1].imshow( img_dst)
-    axarr[2].imshow(result) # plot src image
-    #######################
-
     num_points = len(mp_src[0])
+    # print("num_points [{}]".format(num_points))
     matches_matrix = np.empty((0, 9), np.double)
 
     for i in range(num_points):
@@ -100,10 +89,39 @@ def compute_homography_naive(mp_src, mp_dst):
     matches_matrix_tilde = np.matmul(np.transpose(matches_matrix), matches_matrix)
     # compute SVD to get the first eigen vector - s is the eigenvalues
     u, s, vh = np.linalg.svd(matches_matrix_tilde, full_matrices=True)
-    print(u)
-    print(s)
     homography_matrix = u[:, -1].reshape(3, 3)
+    homography_matrix = np.divide(homography_matrix, homography_matrix[2, 2])
     return homography_matrix
+
+
+# TODO: delete this verification method
+def compute_homography_naive_verify(mp_src, mp_dst):
+    """
+    :param mp_src: A variable containing 2 rows and N columns, where the i column
+    represents coordinates of match point i in the src image.
+
+    :param mp_dst: A variable containing 2 rows and N columns, where the i column
+    represents coordinates of match point i in the dst image.
+
+    :return: H - Projective transformation matrix from src to dst
+    """
+    # https://www.learnopencv.com/homography-examples-using-opencv-python-c/
+    # import the images
+    img_src = mpimg.imread('src.jpg')
+    img_dst = mpimg.imread('dst.jpg')
+    # use cv2
+    h_real , status_real = cv2.findHomography(mp_src.T, mp_dst.T)
+    checkPoint = np.dot(h_real, np.append(mp_src.T[0], 1))
+    checkPoint /= checkPoint[2] # to affine
+
+    # plot and calculate the src image to the dst coordinats
+    result = cv2.warpPerspective(img_src, h_real, (img_dst.shape[0],img_dst.shape[1]))
+    f, axarr = plt.subplots(1, 3)
+    axarr[0].imshow( img_src)
+    axarr[1].imshow( img_dst)
+    axarr[2].imshow(result) # plot src image
+    plt.show()
+    return h_real
 
 
 ####################################
@@ -112,12 +130,12 @@ def compute_homography_naive(mp_src, mp_dst):
 
 def test_homography(H, mp_src, mp_dst, max_err):
     """
-    :param H: A variable containing 2 rows and N columns, where the i column
+    :param H: homography to test
+    :param mp_src: A variable containing 2 rows and N columns, where the i column
     represents coordinates of match point i in the src image
-    :param mp_src:A variable containing 2 rows and N columns, where the i column
+    :param mp_dst: A variable containing 2 rows and N columns, where the i column
     represents coordinates of match point i in the dst image
-    :param mp_dst:
-    :param max_err:A scalar that represents the maximum distance (in pixels) between the
+    :param max_err: A scalar that represents the maximum distance (in pixels) between the
     mapped src point to its corresponding dst point, in order to be
     considered as valid inlier
     :return:
@@ -125,14 +143,23 @@ def test_homography(H, mp_src, mp_dst, max_err):
     dist_mse - Mean square error of the distances between validly mapped src points,
     to their corresponding dst points (only for inliers).
     """
-    num_points = len(mp_src[0])
-    matches_matrix = np.empty((0, 9), np.double)
+    src_points = convert_to_numpy(mp_src)
+    src_points_mapped = np.matmul(H, src_points)  # 3xN points after being mapped with the homography
+    src_points_mapped = np.divide(src_points_mapped, src_points_mapped[2, :])  # divide by the last row
 
-    for i in range(num_points):
-        x_src = mp_src[0][i]
-        y_src = mp_src[1][i]
-        x_dst = mp_dst[0][i]
-        y_dst = mp_dst[1][i]
+    # assuming H is from the src to the dst (forward mapping) then we do not map the dst points
+    dst_points = convert_to_numpy(mp_dst)
+
+    dist = np.sqrt(np.sum((src_points_mapped - dst_points) ** 2, axis=0))
+    print(dist)
+    num_inliers = np.count_nonzero(dist < max_err)
+    print(num_inliers)
+    num_points = len(mp_src[0])
+    print(num_points)
+    print(num_inliers / num_points)
+    fit_percent = num_inliers / num_points
+    mse = (1 / num_points) * np.sum((np.array((dist < max_err), dtype=int) * dist) ** 2, axis=0)
+    return fit_percent, mse
 
 
 def compute_homography(mp_src, mp_dst, inliers_percent, max_err):

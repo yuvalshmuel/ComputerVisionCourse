@@ -35,18 +35,23 @@ ptont_images_with_points(match_p_src, match_p_dst)
 # Compute naive homography
 tt = time.time()
 H_naive = compute_homography_naive(match_p_src, match_p_dst)
+# H_naive = compute_homography_naive_verify(match_p_src, match_p_dst)  # TODO: remove this line
 print('Naive Homography {:5.4f} sec'.format(toc(tt)))
 print(H_naive)
 
-match_p_src_np = convert_to_numpy(match_p_src)
-mapped_points = np.matmul(H_naive, match_p_src_np)  # 3xN mapped points
-mapped_points = np.divide(mapped_points, mapped_points[2,:])
-print(mapped_points)
+image_corners = convert_to_numpy(find_image_corners(img_src))
+image_corners_mapped = np.matmul(H_naive, image_corners)  # 3x4 image corners after being mapped with the homography
+image_corners_mapped = np.divide(image_corners_mapped, image_corners_mapped[2,:])  # divide by the last row
 # find_image_size(mapped_points[0:1,:])
-im_out = cv2.warpPerspective(img_src, H_naive, (img_dst.shape[1], img_dst.shape[0]))
+min_x = np.min(image_corners_mapped[0,:])
+min_y = np.min(image_corners_mapped[1,:])
+min_x = int(min_x)
+min_y = int(min_y)
+img_src_padded = cv2.copyMakeBorder(img_src, -min_y if min_y < 0 else 0, 0, -min_x if min_x < 0 else 0, 0, cv2.BORDER_CONSTANT)
+img_src_mapped = cv2.warpPerspective(img_src_padded, H_naive, (img_src.shape[1], img_src.shape[0]))
 f, axarr = plt.subplots(1, 1)
-#axarr.axis('off')
-axarr.imshow(im_out)
+plt.axis('off')
+axarr.imshow(img_src_mapped)
 plt.show()
 
 # Test naive homography
@@ -55,6 +60,7 @@ fit_percent, dist_mse = test_homography(H_naive, match_p_src, match_p_dst, max_e
 print('Naive Homography Test {:5.4f} sec'.format(toc(tt)))
 print([fit_percent, dist_mse])
 
+exit(1)
 
 # Compute RANSAC homography
 tt = tic()
