@@ -220,7 +220,9 @@ considered as valid inlier.
     :return:
     img_pan – Panorama image built from two input images.
     """
-
+    # https://github.com/tsherlock/panorama/blob/master/pano_stitcher.py
+    # https://github.com/karanvivekbhargava/PanoramaStiching/blob/master/panorama.py
+    # https: // github.com / tsherlock / panorama / blob / master / pano_stitcher.py
     ## todo: Change H Calculation here
     H_inden , junck=  cv2.findHomography( mp_src.T , mp_src.T)
     H, status_real = cv2.findHomography( mp_dst.T , mp_src.T)
@@ -263,7 +265,7 @@ considered as valid inlier.
     # #t_img_dst = cv2.copyMakeBorder(img_dst,abs(img_dst.shape[0] -  result.shape[0]), 0,0, 0,cv2.BORDER_CONSTANT)
     # #result[0:, img_dst.shape[1]:] = img_dst
 
-    
+
 def warp_image(image, homography):
     """Warps 'image' by 'homography'
     Arguments:
