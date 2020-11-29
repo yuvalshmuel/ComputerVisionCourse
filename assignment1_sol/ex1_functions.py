@@ -175,7 +175,7 @@ def compute_homography(mp_src, mp_dst, inliers_percent, max_err):
     :return:
     H – Projective transformation matrix from src to dst.
     """
-    d = 0.7
+    d = 0.6
     p = 0.99  # we require 95% success probability from RANSAC algorithm
     n = 4  # we need 4 matching pairs of points to solve an homography
     prob_any_outlier = 1 - math.pow(inliers_percent, n)
@@ -235,14 +235,61 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     # https://github.com/karanvivekbhargava/PanoramaStiching/blob/master/panorama.py
     # https: // github.com / tsherlock / panorama / blob / master / pano_stitcher.py
     ## todo: Change H Calculation here
-    # H = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
-    H, _ = cv2.findHomography(mp_dst.T, mp_src.T)
-    H_identity, _ = cv2.findHomography(mp_src.T, mp_src.T)
+    H_forward = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
+    dst_image_corners = convert_to_numpy(find_image_corners(img_dst))
+    dst_image_corners_mapped = np.matmul(H_forward, dst_image_corners)  # 3x4 image corners after being mapped with the homography
+    dst_image_corners_mapped = np.divide(dst_image_corners_mapped, dst_image_corners_mapped[2, :])  # divide by the last row
+    # find_image_size(mapped_points[0:1,:])
+    min_x = np.min(dst_image_corners_mapped[0, :])
+    min_y = np.min(dst_image_corners_mapped[1, :])
+    max_x = np.max(dst_image_corners_mapped[0, :])
+    max_y = np.max(dst_image_corners_mapped[1, :])
+    min_x = int(min_x)
+    min_y = int(min_y)
+    max_x = int(max_x)
+    max_y = int(max_y)
 
-    warped_src, A_src = warp_image(img_src, H_identity)
-    warped_dst, A_dst = warp_image(img_dst, H)
-    result = create_mosaic([warped_src, warped_dst], [A_src, A_dst])
-    return result
+    # img_dst_padded = cv2.copyMakeBorder(img_dst, -min_y if min_y < 0 else 0, 0, -min_x if min_x < 0 else 0, 0, cv2.BORDER_CONSTANT)
+    # img_dst_padded = cv2.warpPerspective(img_dst_padded, H_forward, (img_dst.shape[1], img_dst.shape[0]))
+    # f, axarr = plt.subplots(1, 1)
+    # plt.axis('off')
+    # axarr.imshow(img_dst_padded)
+    # plt.show()
+
+    print(dst_image_corners_mapped)
+    print("{} {} {} {}".format(min_x, min_y, max_x, max_y))
+    # find new image dimensions
+    src_img_width = img_src.shape[1]
+    src_img_height = img_src.shape[0]
+    dst_img_width = img_dst.shape[1]
+    dst_img_height = img_dst.shape[0]
+    panorama_dim_width = max(src_img_width, max_x) - min(0, min_x)
+    panorama_dim_height = max(src_img_height, max_y) - min(0, min_y)
+    panorama_img = np.zeros([panorama_dim_height, panorama_dim_width, 3], dtype=int)
+    print("final panorama size [{}]".format(panorama_img.shape))
+    # place the src image in the result image
+    width_diff = (-min_x if min_x < 0 else 0)
+    height_diff = (-min_y if min_y < 0 else 0)
+    panorama_img[height_diff:(src_img_height + height_diff), width_diff:(src_img_width + width_diff)] = img_src
+
+    H_backward = compute_homography(mp_src, mp_dst, inliers_percent, max_err)
+    for x in range(panorama_dim_width):
+        for y in range(panorama_dim_height):
+            if width_diff <= x < (src_img_width + width_diff) and height_diff <= y < (src_img_height + height_diff):
+                continue
+            pixel_mapped = np.matmul(H_backward, np.transpose(np.array([x, y, 1])))
+            pixel_mapped = np.divide(pixel_mapped, pixel_mapped[2])
+            pixel_mapped_x = int(pixel_mapped[0])
+            pixel_mapped_y = int(pixel_mapped[1])
+            if 0 <= pixel_mapped_x < dst_img_width and 0 <= pixel_mapped_y < dst_img_height:
+                panorama_img[y, x, :] = img_dst[pixel_mapped_y, pixel_mapped_x, :]
+
+    # H, _ = cv2.findHomography(mp_dst.T, mp_src.T)
+    # H_identity, _ = cv2.findHomography(mp_src.T, mp_src.T)
+    # warped_src, A_src = warp_image(img_src, H_identity)
+    # warped_dst, A_dst = warp_image(img_dst, H)
+    # result = create_mosaic([warped_src, warped_dst], [A_src, A_dst])
+    return panorama_img
 
     # warped_image = cv2.warpPerspective(imageA, H,
     #                                    (2* imageB.shape[1], imageB.shape[0]))
