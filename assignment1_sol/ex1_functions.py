@@ -155,8 +155,8 @@ def test_homography(H, mp_src, mp_dst, max_err):
     num_inliers = np.count_nonzero(dist < max_err)
     num_points = len(mp_src[0])
     fit_percent = num_inliers / num_points
-    # dist_mse = (1 / num_inliers) * np.sum((np.array((dist < max_err), dtype=int) * dist) ** 2, axis=0)
-    dist_mse = (1 / num_inliers) * np.sum((np.array([1] * num_points, dtype=int) * dist) ** 2, axis=0)
+    dist_mse = (1 / num_inliers) * np.sum((np.array((dist < max_err), dtype=int) * dist) ** 2, axis=0)
+    # dist_mse = (1 / num_points) * np.sum((np.array([1] * num_points, dtype=int) * dist) ** 2, axis=0)
     print("inliers [{}] total [{}] mse [{}]".format(num_inliers, num_points, dist_mse))
     return fit_percent, dist_mse
 
@@ -175,6 +175,7 @@ def compute_homography(mp_src, mp_dst, inliers_percent, max_err):
     :return:
     H – Projective transformation matrix from src to dst.
     """
+    d = 0.7
     p = 0.99  # we require 95% success probability from RANSAC algorithm
     n = 4  # we need 4 matching pairs of points to solve an homography
     prob_any_outlier = 1 - math.pow(inliers_percent, n)
@@ -192,7 +193,17 @@ def compute_homography(mp_src, mp_dst, inliers_percent, max_err):
         mp_dst_pick = mp_dst[:, picked_indices]
         H = compute_homography_naive(mp_src_pick, mp_dst_pick)
         fit_percent, mse = test_homography(H, mp_src, mp_dst, max_err)
-        if H_best is None or mse < mse_best:
+        if fit_percent >= d and (H_best is None or mse < mse_best):
+            src_points = convert_to_numpy(mp_src)
+            src_points_mapped = np.matmul(H, src_points)  # 3xN points after being mapped with the homography
+            src_points_mapped = np.divide(src_points_mapped, src_points_mapped[2, :])  # divide by the last row
+            # assuming H is from the src to the dst (forward mapping) then we do not map the dst points
+            dst_points = convert_to_numpy(mp_dst)
+            dist = np.sqrt(np.sum((src_points_mapped - dst_points) ** 2, axis=0))
+            inliers_indices = dist < max_err
+            mp_src_inliers = mp_src[:, inliers_indices]
+            mp_dst_inliers = mp_dst[:, inliers_indices]
+            H = compute_homography_naive(mp_src_inliers, mp_dst_inliers)
             mse_best = mse
             H_best = H
 
@@ -204,19 +215,19 @@ def compute_homography(mp_src, mp_dst, inliers_percent, max_err):
 # Part C
 ####################################
 
-def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent = 100, max_err = 1):
+def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     """
     :param img_src: Source image expected to undergo projective transformation.
     :param img_dst: Destination image to which the source image is being mapped to.
     :param mp_src: A variable containing 2 rows and N columns, where the i column
-represents coordinates of match point i in the src image.
+    represents coordinates of match point i in the src image.
     :param mp_dst: A variable containing 2 rows and N columns, where the i column
-represents coordinates of match point i in the dst image.
+    represents coordinates of match point i in the dst image.
     :param inliers_percent: The expected probability (between 0 and 1) of correct match points from
-the entire list of match points.
+    the entire list of match points.
     :param max_err:A scalar that represents the maximum distance (in pixels) between the
-mapped src point to its corresponding dst point, in order to be
-considered as valid inlier.
+    mapped src point to its corresponding dst point, in order to be
+    considered as valid inlier.
     :return:
     img_pan – Panorama image built from two input images.
     """
@@ -224,15 +235,14 @@ considered as valid inlier.
     # https://github.com/karanvivekbhargava/PanoramaStiching/blob/master/panorama.py
     # https: // github.com / tsherlock / panorama / blob / master / pano_stitcher.py
     ## todo: Change H Calculation here
-    H_inden , junck=  cv2.findHomography( mp_src.T , mp_src.T)
-    H, status_real = cv2.findHomography( mp_dst.T , mp_src.T)
-    img_dst
-    img_src # Left and atay the same image
+    # H = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
+    H, _ = cv2.findHomography(mp_dst.T, mp_src.T)
+    H_identity, _ = cv2.findHomography(mp_src.T, mp_src.T)
 
-    warped_src, A_src = warp_image(img_src,H_inden)
-    warped_dst, A_dst = warp_image(img_dst  , H)
+    warped_src, A_src = warp_image(img_src, H_identity)
+    warped_dst, A_dst = warp_image(img_dst, H)
     result = create_mosaic([warped_src, warped_dst], [A_src, A_dst])
-    plt.imshow(result)
+    return result
 
     # warped_image = cv2.warpPerspective(imageA, H,
     #                                    (2* imageB.shape[1], imageB.shape[0]))

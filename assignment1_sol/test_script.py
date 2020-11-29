@@ -12,8 +12,8 @@ def toc(t):
 
 ##########################################################
 # Don't forget to fill in your IDs!!!
-# students' IDs:
 ID1 = 1 # TODO: add ID
+# students' IDs:
 ID2 = 2 # TODO: add ID
 ##########################################################
 
@@ -87,7 +87,6 @@ plt.axis('off')
 axarr.imshow(img_src_mapped)
 plt.show()
 
-exit(0)
 
 # Build panorama
 tt = tic()
@@ -97,9 +96,9 @@ print('Panorama {:5.4f} sec'.format(toc(tt)))
 plt.figure()
 panplot = plt.imshow(img_pan)
 plt.title('Great Panorama')
-# plt.show()
+plt.show()
 
-
+exit(0)
 
 ## Student Files
 #first run "create_matching_points.py" with your own images to create a mat file with the matching coordinates.
