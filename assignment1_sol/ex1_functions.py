@@ -235,15 +235,15 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     # https://github.com/karanvivekbhargava/PanoramaStiching/blob/master/panorama.py
     # https: // github.com / tsherlock / panorama / blob / master / pano_stitcher.py
     ## todo: Change H Calculation here
-    H_forward = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
-    dst_image_corners = convert_to_numpy(find_image_corners(img_dst))
-    dst_image_corners_mapped = np.matmul(H_forward, dst_image_corners)  # 3x4 image corners after being mapped with the homography
-    dst_image_corners_mapped = np.divide(dst_image_corners_mapped, dst_image_corners_mapped[2, :])  # divide by the last row
+    H_forward = compute_homography(mp_src, mp_dst, inliers_percent, max_err)
+    src_image_corners = convert_to_numpy(find_image_corners(img_src))
+    src_image_corners_mapped = np.matmul(H_forward, src_image_corners)  # 3x4 image corners after being mapped with the homography
+    src_image_corners_mapped = np.divide(src_image_corners_mapped, src_image_corners_mapped[2, :])  # divide by the last row
     # find_image_size(mapped_points[0:1,:])
-    min_x = np.min(dst_image_corners_mapped[0, :])
-    min_y = np.min(dst_image_corners_mapped[1, :])
-    max_x = np.max(dst_image_corners_mapped[0, :])
-    max_y = np.max(dst_image_corners_mapped[1, :])
+    min_x = np.min(src_image_corners_mapped[0, :])
+    min_y = np.min(src_image_corners_mapped[1, :])
+    max_x = np.max(src_image_corners_mapped[0, :])
+    max_y = np.max(src_image_corners_mapped[1, :])
     min_x = int(min_x)
     min_y = int(min_y)
     max_x = int(max_x)
@@ -256,33 +256,34 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     # axarr.imshow(img_dst_padded)
     # plt.show()
 
-    print(dst_image_corners_mapped)
+    print(src_image_corners_mapped)
     print("{} {} {} {}".format(min_x, min_y, max_x, max_y))
     # find new image dimensions
-    src_img_width = img_src.shape[1]
-    src_img_height = img_src.shape[0]
     dst_img_width = img_dst.shape[1]
     dst_img_height = img_dst.shape[0]
-    panorama_dim_width = max(src_img_width, max_x) - min(0, min_x)
-    panorama_dim_height = max(src_img_height, max_y) - min(0, min_y)
+    src_img_width = img_src.shape[1]
+    src_img_height = img_src.shape[0]
+    panorama_dim_width = max(dst_img_width, max_x) - min(0, min_x)
+    panorama_dim_height = max(dst_img_height, max_y) - min(0, min_y)
     panorama_img = np.zeros([panorama_dim_height, panorama_dim_width, 3], dtype=int)
     print("final panorama size [{}]".format(panorama_img.shape))
     # place the src image in the result image
     width_diff = (-min_x if min_x < 0 else 0)
     height_diff = (-min_y if min_y < 0 else 0)
-    panorama_img[height_diff:(src_img_height + height_diff), width_diff:(src_img_width + width_diff)] = img_src
+    panorama_img[height_diff:(dst_img_height + height_diff), width_diff:(dst_img_width + width_diff)] = img_dst
 
-    H_backward = compute_homography(mp_src, mp_dst, inliers_percent, max_err)
+    H_backward = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
     for x in range(panorama_dim_width):
         for y in range(panorama_dim_height):
-            if width_diff <= x < (src_img_width + width_diff) and height_diff <= y < (src_img_height + height_diff):
+            if width_diff <= x < (dst_img_width + width_diff) and height_diff <= y < (dst_img_height + height_diff):
                 continue
-            pixel_mapped = np.matmul(H_backward, np.transpose(np.array([x, y, 1])))
+            pixel_mapped = np.matmul(H_backward, np.transpose(np.array([x - width_diff, y - height_diff, 1])))
             pixel_mapped = np.divide(pixel_mapped, pixel_mapped[2])
             pixel_mapped_x = int(pixel_mapped[0])
             pixel_mapped_y = int(pixel_mapped[1])
-            if 0 <= pixel_mapped_x < dst_img_width and 0 <= pixel_mapped_y < dst_img_height:
-                panorama_img[y, x, :] = img_dst[pixel_mapped_y, pixel_mapped_x, :]
+            if 0 <= pixel_mapped_x < src_img_width and 0 <= pixel_mapped_y < src_img_height:
+                # TODO: add bilinear interpolation here
+                panorama_img[y, x, :] = img_src[pixel_mapped_y, pixel_mapped_x, :]
 
     # H, _ = cv2.findHomography(mp_dst.T, mp_src.T)
     # H_identity, _ = cv2.findHomography(mp_src.T, mp_src.T)

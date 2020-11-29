@@ -91,7 +91,7 @@ plt.show()
 # Build panorama
 tt = tic()
 img_pan = panorama(img_src, img_dst, match_p_src, match_p_dst, inliers_percent, max_err)
-# img_pan = panorama(img_dst, img_src, match_p_dst, match_p_src, inliers_percent, max_err)
+# img_pan = panorama(img_dst, img_src, match_p_dst, match_p_src, inliers_percent, max_err)  # TODO: remove this
 print('Panorama {:5.4f} sec'.format(toc(tt)))
 
 plt.figure()
