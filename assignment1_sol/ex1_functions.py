@@ -282,7 +282,7 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
             pixel_mapped_x = int(pixel_mapped[0])
             pixel_mapped_y = int(pixel_mapped[1])
             if 0 <= pixel_mapped_x < src_img_width and 0 <= pixel_mapped_y < src_img_height:
-                # TODO: add bilinear interpolation here
+                # TODO: add bilinear interpolation here, note that pixel_mapped_x, pixel_mapped_y are already ints here, this must be changed
                 panorama_img[y, x, :] = img_src[pixel_mapped_y, pixel_mapped_x, :]
 
     # H, _ = cv2.findHomography(mp_dst.T, mp_src.T)
