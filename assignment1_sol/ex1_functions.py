@@ -235,6 +235,7 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     img_pan – Panorama image built from two input images.
     """
     use_bilinear_interpolation = True
+
     H_forward = compute_homography(mp_src, mp_dst, inliers_percent, max_err)
     src_image_corners = convert_to_numpy(find_image_corners(img_src))
     src_image_corners_mapped = np.matmul(H_forward, src_image_corners)  # 3x4 image corners after being mapped with the homography

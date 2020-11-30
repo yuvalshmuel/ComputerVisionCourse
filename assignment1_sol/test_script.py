@@ -1,5 +1,6 @@
 import scipy.io
 import time
+import cv2
 
 from ex1_functions import *
 def tic():
