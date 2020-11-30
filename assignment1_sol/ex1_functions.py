@@ -239,7 +239,7 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     src_image_corners = convert_to_numpy(find_image_corners(img_src))
     src_image_corners_mapped = np.matmul(H_forward, src_image_corners)  # 3x4 image corners after being mapped with the homography
     src_image_corners_mapped = np.divide(src_image_corners_mapped, src_image_corners_mapped[2, :])  # divide by the last row
-    # find_image_size(mapped_points[0:1,:])
+    #    plt.scatter(src_image_corners_mapped[0], src_image_corners_mapped[1])
     min_x = np.min(src_image_corners_mapped[0, :])
     min_y = np.min(src_image_corners_mapped[1, :])
     max_x = np.max(src_image_corners_mapped[0, :])
@@ -274,16 +274,18 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
 
     H_backward = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
     for x in range(panorama_dim_width):
+        # print(x) # for debug
         for y in range(panorama_dim_height):
             if width_diff <= x < (dst_img_width + width_diff) and height_diff <= y < (dst_img_height + height_diff):
                 continue
             pixel_mapped = np.matmul(H_backward, np.transpose(np.array([x - width_diff, y - height_diff, 1])))
             pixel_mapped = np.divide(pixel_mapped, pixel_mapped[2])
-            pixel_mapped_x = int(pixel_mapped[0])
-            pixel_mapped_y = int(pixel_mapped[1])
+            pixel_mapped_x = pixel_mapped[0]#int(pixel_mapped[0])
+            pixel_mapped_y = pixel_mapped[1]#int(pixel_mapped[1])
             if 0 <= pixel_mapped_x < src_img_width and 0 <= pixel_mapped_y < src_img_height:
+                panorama_img[y, x, :] = bilinear_interpolate(img_src, pixel_mapped_x, pixel_mapped_y) # practicly do nothing
                 # TODO: add bilinear interpolation here, note that pixel_mapped_x, pixel_mapped_y are already ints here, this must be changed
-                panorama_img[y, x, :] = img_src[pixel_mapped_y, pixel_mapped_x, :]
+                #panorama_img[y, x, :] = img_src[pixel_mapped_y, pixel_mapped_x, :]
 
     # H, _ = cv2.findHomography(mp_dst.T, mp_src.T)
     # H_identity, _ = cv2.findHomography(mp_src.T, mp_src.T)
@@ -323,6 +325,39 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     # #t_img_dst = cv2.copyMakeBorder(img_dst,abs(img_dst.shape[0] -  result.shape[0]), 0,0, 0,cv2.BORDER_CONSTANT)
     # #result[0:, img_dst.shape[1]:] = img_dst
 
+
+def bilinear_interpolate(im, x, y):
+    """
+    :param im: the image to interpulate with
+    :param x:
+    :param y:
+    :return:
+    """
+
+    #x = np.asarray(x)
+    #y = np.asarray(y)
+
+    x0 = np.floor(x).astype(int)
+    x1 = x0 + 1
+    y0 = np.floor(y).astype(int)
+    y1 = y0 + 1
+
+    x0 = np.clip(x0, 0, im.shape[1]-1);
+    x1 = np.clip(x1, 0, im.shape[1]-1);
+    y0 = np.clip(y0, 0, im.shape[0]-1);
+    y1 = np.clip(y1, 0, im.shape[0]-1);
+
+    Ia = im[ y0, x0 ]
+    Ib = im[ y1, x0 ]
+    Ic = im[ y0, x1 ]
+    Id = im[ y1, x1 ]
+
+    wa = (x1-x) * (y1-y)
+    wb = (x1-x) * (y-y0)
+    wc = (x-x0) * (y1-y)
+    wd = (x-x0) * (y-y0)
+
+    return wa*Ia + wb*Ib + wc*Ic + wd*Id
 
 def warp_image(image, homography):
     """Warps 'image' by 'homography'
