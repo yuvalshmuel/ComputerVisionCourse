@@ -1,8 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import matplotlib.transforms as mtransforms
-import cv2
 import math
 
 
@@ -127,7 +125,7 @@ def test_homography(H, mp_src, mp_dst, max_err):
     num_points = len(mp_src[0])
     fit_percent = num_inliers / num_points
     dist_mse = (1 / num_inliers) * np.sum((np.array((dist < max_err), dtype=int) * dist) ** 2, axis=0)
-    print("inliers [{}] total [{}] mse [{}]".format(num_inliers, num_points, dist_mse))
+    # print("inliers [{}] total [{}] mse [{}]".format(num_inliers, num_points, dist_mse))
     return fit_percent, dist_mse
 
 
@@ -146,11 +144,10 @@ def compute_homography(mp_src, mp_dst, inliers_percent, max_err):
     H – Projective transformation matrix from src to dst.
     """
     d = 0.5
-    p = 0.99  # we require 95% success probability from RANSAC algorithm
+    p = 0.99  # we require 99% success probability from RANSAC algorithm
     n = 4  # we need 4 matching pairs of points to solve an homography
     prob_any_outlier = 1 - math.pow(inliers_percent, n)
     num_iterations = math.ceil(math.log(1 - p) / math.log(prob_any_outlier))
-    print("num_iterations [{}]".format(num_iterations))
 
     num_points = len(mp_src[0])
 
@@ -177,7 +174,7 @@ def compute_homography(mp_src, mp_dst, inliers_percent, max_err):
             mse_best = mse
             H_best = H
 
-    print("best mse [{}]".format(mse_best))
+    # print("best mse [{}]".format(mse_best))
     return H_best
 
 
@@ -238,6 +235,7 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     img_pan – Panorama image built from two input images.
     """
     use_bilinear_interpolation = True
+
     H_forward = compute_homography(mp_src, mp_dst, inliers_percent, max_err)
     src_image_corners = convert_to_numpy(find_image_corners(img_src))
     src_image_corners_mapped = np.matmul(H_forward, src_image_corners)  # 3x4 image corners after being mapped with the homography
@@ -251,8 +249,6 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     max_x = int(max_x)
     max_y = int(max_y)
 
-    print(src_image_corners_mapped)
-    print("{} {} {} {}".format(min_x, min_y, max_x, max_y))
     # find new image dimensions
     dst_img_width = img_dst.shape[1]
     dst_img_height = img_dst.shape[0]
@@ -261,7 +257,6 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     panorama_dim_width = max(dst_img_width, max_x) - min(0, min_x)
     panorama_dim_height = max(dst_img_height, max_y) - min(0, min_y)
     panorama_img = np.zeros([panorama_dim_height, panorama_dim_width, 3], dtype=int)
-    print("final panorama size [{}]".format(panorama_img.shape))
     # place the src image in the result image
     width_diff = (-min_x if min_x < 0 else 0)
     height_diff = (-min_y if min_y < 0 else 0)
@@ -269,32 +264,20 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
 
     H_backward = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
     X, Y = np.mgrid[0:panorama_dim_height, 0:panorama_dim_width]
-    print(Y.ravel().shape)
     img_points = np.vstack((X.ravel(), Y.ravel(), np.ones(Y.ravel().shape[0])))
-    print(img_points.shape)
-    print(img_points[:, 0:10])
     img_points_keep_indices = np.where(np.logical_or(img_points[0, :] >= (dst_img_width + width_diff), np.logical_or(img_points[0, :] < width_diff, np.logical_or(img_points[1, :] >= (dst_img_height + height_diff), img_points[1, :] < height_diff))))
     img_points_keep_indices = img_points_keep_indices[0]  # dereference tuple
-    print(img_points_keep_indices.shape)
-    print(img_points_keep_indices[0:10])
     img_points = np.array(img_points[:, img_points_keep_indices], dtype=int)
-    print("img_points:::")
-    print(img_points.shape)
-    print(img_points[0:10])
     img_points_shifted = np.array(img_points)
     img_points_shifted[0, :] = img_points_shifted[0, :] - width_diff
     img_points_shifted[1, :] = img_points_shifted[1, :] - height_diff
     img_points_mapped = np.matmul(H_backward, img_points_shifted)
     img_points_mapped = np.divide(img_points_mapped, img_points_mapped[2, :])
-    print(img_points_mapped.shape)
-    print(img_points_mapped[:,:10])
     for i in range(img_points_mapped.shape[1]):
         img_point_x = img_points[0][i]
         img_point_y = img_points[1][i]
-        # print("{} {}".format(img_point_x, img_point_y))
         pixel_mapped_x = img_points_mapped[0][i]  # int(pixel_mapped[0])
         pixel_mapped_y = img_points_mapped[1][i]  # int(pixel_mapped[1])
-        # print("{} {}".format(int(pixel_mapped_x), int(pixel_mapped_y)))
         if 0 <= pixel_mapped_x < src_img_width and 0 <= pixel_mapped_y < src_img_height:
             if use_bilinear_interpolation:
                 panorama_img[img_point_y, img_point_x, :] = bilinear_interpolate(img_src, pixel_mapped_x, pixel_mapped_y)

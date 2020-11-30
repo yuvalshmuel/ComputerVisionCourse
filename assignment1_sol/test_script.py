@@ -1,8 +1,6 @@
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 import scipy.io
 import time
-import numpy as np
+import cv2
 
 from ex1_functions import *
 def tic():
