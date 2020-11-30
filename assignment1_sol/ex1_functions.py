@@ -274,7 +274,7 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
 
     H_backward = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
     for x in range(panorama_dim_width):
-        # print(x) # for debug
+        print(x) # for debug
         for y in range(panorama_dim_height):
             if width_diff <= x < (dst_img_width + width_diff) and height_diff <= y < (dst_img_height + height_diff):
                 continue
