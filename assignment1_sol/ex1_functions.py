@@ -95,36 +95,6 @@ def compute_homography_naive(mp_src, mp_dst):
     return homography_matrix
 
 
-# TODO: delete this verification method
-def compute_homography_naive_verify(mp_src, mp_dst):
-    """
-    :param mp_src: A variable containing 2 rows and N columns, where the i column
-    represents coordinates of match point i in the src image.
-
-    :param mp_dst: A variable containing 2 rows and N columns, where the i column
-    represents coordinates of match point i in the dst image.
-
-    :return: H - Projective transformation matrix from src to dst
-    """
-    # https://www.learnopencv.com/homography-examples-using-opencv-python-c/
-    # import the images
-    img_src = mpimg.imread('src.jpg')
-    img_dst = mpimg.imread('dst.jpg')
-    # use cv2
-    h_real , status_real = cv2.findHomography(mp_src.T, mp_dst.T)
-    checkPoint = np.dot(h_real, np.append(mp_src.T[0], 1))
-    checkPoint /= checkPoint[2] # to affine
-
-    # plot and calculate the src image to the dst coordinats
-    result = cv2.warpPerspective(img_src, h_real, (img_dst.shape[0],img_dst.shape[1]))
-    f, axarr = plt.subplots(1, 3)
-    axarr[0].imshow( img_src)
-    axarr[1].imshow( img_dst)
-    axarr[2].imshow(result) # plot src image
-    plt.show()
-    return h_real
-
-
 ####################################
 # Part B
 ####################################
@@ -156,7 +126,6 @@ def test_homography(H, mp_src, mp_dst, max_err):
     num_points = len(mp_src[0])
     fit_percent = num_inliers / num_points
     dist_mse = (1 / num_inliers) * np.sum((np.array((dist < max_err), dtype=int) * dist) ** 2, axis=0)
-    # dist_mse = (1 / num_points) * np.sum((np.array([1] * num_points, dtype=int) * dist) ** 2, axis=0)
     print("inliers [{}] total [{}] mse [{}]".format(num_inliers, num_points, dist_mse))
     return fit_percent, dist_mse
 
@@ -215,117 +184,6 @@ def compute_homography(mp_src, mp_dst, inliers_percent, max_err):
 # Part C
 ####################################
 
-def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
-    """
-    :param img_src: Source image expected to undergo projective transformation.
-    :param img_dst: Destination image to which the source image is being mapped to.
-    :param mp_src: A variable containing 2 rows and N columns, where the i column
-    represents coordinates of match point i in the src image.
-    :param mp_dst: A variable containing 2 rows and N columns, where the i column
-    represents coordinates of match point i in the dst image.
-    :param inliers_percent: The expected probability (between 0 and 1) of correct match points from
-    the entire list of match points.
-    :param max_err:A scalar that represents the maximum distance (in pixels) between the
-    mapped src point to its corresponding dst point, in order to be
-    considered as valid inlier.
-    :return:
-    img_pan – Panorama image built from two input images.
-    """
-    # https://github.com/tsherlock/panorama/blob/master/pano_stitcher.py
-    # https://github.com/karanvivekbhargava/PanoramaStiching/blob/master/panorama.py
-    # https: // github.com / tsherlock / panorama / blob / master / pano_stitcher.py
-    ## todo: Change H Calculation here
-    H_forward = compute_homography(mp_src, mp_dst, inliers_percent, max_err)
-    src_image_corners = convert_to_numpy(find_image_corners(img_src))
-    src_image_corners_mapped = np.matmul(H_forward, src_image_corners)  # 3x4 image corners after being mapped with the homography
-    src_image_corners_mapped = np.divide(src_image_corners_mapped, src_image_corners_mapped[2, :])  # divide by the last row
-    #    plt.scatter(src_image_corners_mapped[0], src_image_corners_mapped[1])
-    min_x = np.min(src_image_corners_mapped[0, :])
-    min_y = np.min(src_image_corners_mapped[1, :])
-    max_x = np.max(src_image_corners_mapped[0, :])
-    max_y = np.max(src_image_corners_mapped[1, :])
-    min_x = int(min_x)
-    min_y = int(min_y)
-    max_x = int(max_x)
-    max_y = int(max_y)
-
-    # img_dst_padded = cv2.copyMakeBorder(img_dst, -min_y if min_y < 0 else 0, 0, -min_x if min_x < 0 else 0, 0, cv2.BORDER_CONSTANT)
-    # img_dst_padded = cv2.warpPerspective(img_dst_padded, H_forward, (img_dst.shape[1], img_dst.shape[0]))
-    # f, axarr = plt.subplots(1, 1)
-    # plt.axis('off')
-    # axarr.imshow(img_dst_padded)
-    # plt.show()
-
-    print(src_image_corners_mapped)
-    print("{} {} {} {}".format(min_x, min_y, max_x, max_y))
-    # find new image dimensions
-    dst_img_width = img_dst.shape[1]
-    dst_img_height = img_dst.shape[0]
-    src_img_width = img_src.shape[1]
-    src_img_height = img_src.shape[0]
-    panorama_dim_width = max(dst_img_width, max_x) - min(0, min_x)
-    panorama_dim_height = max(dst_img_height, max_y) - min(0, min_y)
-    panorama_img = np.zeros([panorama_dim_height, panorama_dim_width, 3], dtype=int)
-    print("final panorama size [{}]".format(panorama_img.shape))
-    # place the src image in the result image
-    width_diff = (-min_x if min_x < 0 else 0)
-    height_diff = (-min_y if min_y < 0 else 0)
-    panorama_img[height_diff:(dst_img_height + height_diff), width_diff:(dst_img_width + width_diff)] = img_dst
-
-    H_backward = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
-    for x in range(panorama_dim_width):
-        print(x) # for debug
-        for y in range(panorama_dim_height):
-            if width_diff <= x < (dst_img_width + width_diff) and height_diff <= y < (dst_img_height + height_diff):
-                continue
-            pixel_mapped = np.matmul(H_backward, np.transpose(np.array([x - width_diff, y - height_diff, 1])))
-            pixel_mapped = np.divide(pixel_mapped, pixel_mapped[2])
-            pixel_mapped_x = pixel_mapped[0]#int(pixel_mapped[0])
-            pixel_mapped_y = pixel_mapped[1]#int(pixel_mapped[1])
-            if 0 <= pixel_mapped_x < src_img_width and 0 <= pixel_mapped_y < src_img_height:
-                panorama_img[y, x, :] = bilinear_interpolate(img_src, pixel_mapped_x, pixel_mapped_y) # practicly do nothing
-                # TODO: add bilinear interpolation here, note that pixel_mapped_x, pixel_mapped_y are already ints here, this must be changed
-                #panorama_img[y, x, :] = img_src[pixel_mapped_y, pixel_mapped_x, :]
-
-    # H, _ = cv2.findHomography(mp_dst.T, mp_src.T)
-    # H_identity, _ = cv2.findHomography(mp_src.T, mp_src.T)
-    # warped_src, A_src = warp_image(img_src, H_identity)
-    # warped_dst, A_dst = warp_image(img_dst, H)
-    # result = create_mosaic([warped_src, warped_dst], [A_src, A_dst])
-    return panorama_img
-
-    # warped_image = cv2.warpPerspective(imageA, H,
-    #                                    (2* imageB.shape[1], imageB.shape[0]))
-    # warped_image[0:imageB.shape[0], 0:imageB.shape[1]] = imageB
-
-    # find_image_size(mapped_points[0:1,:])
-    # image_corners = convert_to_numpy(find_image_corners(img_src))
-    # image_corners_mapped = np.matmul(H, image_corners)  # 3x4 image corners after being mapped with the homography
-    # image_corners_mapped = np.divide(image_corners_mapped, image_corners_mapped[2, :])  # divide by the last row
-    # min_x = np.min(image_corners_mapped[0, :])
-    # min_y = np.min(image_corners_mapped[1, :])
-    # min_x = int(min_x)
-    # min_y = int(min_y)
-    # img_src_padded = cv2.copyMakeBorder(img_src, -min_y if min_y < 0 else 0, 0, -min_x if min_x < 0 else 0, 0,
-    #                                     cv2.BORDER_CONSTANT)
-    # img_src_mapped = cv2.warpPerspective(img_src_padded, H, (img_src.shape[1], img_src.shape[0]))
-    # #f, axarr = plt.subplots(1, 1)
-    # #plt.axis('off')
-    # #axarr.imshow(img_src_mapped)
-    # #plt.show()
-    # #####
-    #
-    # #result = cv2.warpPerspective(img_src, H,(img_src.shape[1] + img_dst.shape[1],max(img_src.shape[0],img_dst.shape[0])))
-    # #result = cv2.warpPerspective(img_src, H,(2*img_dst.shape[1], max(img_src.shape[0], img_dst.shape[0])))
-    # result = cv2.warpPerspective(img_src_mapped, H, (2 * img_dst.shape[1], max(img_src.shape[0], img_dst.shape[0])))
-    # #result = cv2.warpPerspective(imageA, H,(imageA.shape[1] + imageB.shape[1], imageA.shape[0]))
-    #
-    # # cheeat stiching
-    # result[0:img_dst.shape[0],493: 493 + img_dst.shape[1]] = img_dst
-    # #t_img_dst = cv2.copyMakeBorder(img_dst,abs(img_dst.shape[0] -  result.shape[0]), 0,0, 0,cv2.BORDER_CONSTANT)
-    # #result[0:, img_dst.shape[1]:] = img_dst
-
-
 def bilinear_interpolate(im, x, y):
     """
     :param im: the image to interpulate with
@@ -359,127 +217,66 @@ def bilinear_interpolate(im, x, y):
 
     return wa*Ia + wb*Ib + wc*Ic + wd*Id
 
-def warp_image(image, homography):
-    """Warps 'image' by 'homography'
-    Arguments:
-      image: a 3-channel image to be warped.
-      homography: a 3x3 perspective projection matrix mapping points
-                  in the frame of 'image' to a target frame.
-    Returns:
-      - a new 4-channel image containing the warped input, resized to contain
-        the new image's bounds. Translation is offset so the image fits exactly
-        within the bounds of the image. The fourth channel is an alpha channel
-        which is zero anywhere that the warped input image does not map in the
-        output, i.e. empty pixels.
-      - an (x, y) tuple containing location of the warped image's upper-left
-        corner in the target space of 'homography', which accounts for any
-        offset translation component of the homography.
+
+def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     """
-
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
-    h, w, z = image.shape
-
-    # Find min and max x, y of new image
-    p = np.array([[0, w, w, 0], [0, 0, h, h], [1, 1, 1, 1]])
-    p_prime = np.dot(homography, p)
-
-    yrow = p_prime[1] / p_prime[2]
-    xrow = p_prime[0] / p_prime[2]
-    ymin = min(yrow)
-    xmin = min(xrow)
-    ymax = max(yrow)
-    xmax = max(xrow)
-
-    # Make new matrix that removes offset and multiply by homography
-    new_mat = np.array([[1, 0, -1 * xmin], [0, 1, -1 * ymin], [0, 0, 1]])
-    homography = np.dot(new_mat, homography)
-
-    # height and width of new image frame
-    height = int(round(ymax - ymin))
-    width = int(round(xmax - xmin))
-    size = (width, height)
-    # Do the warp
-    warped = cv2.warpPerspective(src=image, M=homography, dsize=size)
-
-    return warped, (int(xmin), int(ymin))
-
-
-def create_mosaic(images, origins):
-    """Combine multiple images into a mosaic.
-    Arguments:
-    images: a list of 4-channel images to combine in the mosaic.
-    origins: a list of the locations upper-left corner of each image in
-    a common frame, e.g. the frame of a central image.
-    Returns: a new 4-channel mosaic combining all of the input images. pixels
-    in the mosaic not covered by any input image should have their
-    alpha channel set to zero.
+    :param img_src: Source image expected to undergo projective transformation.
+    :param img_dst: Destination image to which the source image is being mapped to.
+    :param mp_src: A variable containing 2 rows and N columns, where the i column
+    represents coordinates of match point i in the src image.
+    :param mp_dst: A variable containing 2 rows and N columns, where the i column
+    represents coordinates of match point i in the dst image.
+    :param inliers_percent: The expected probability (between 0 and 1) of correct match points from
+    the entire list of match points.
+    :param max_err:A scalar that represents the maximum distance (in pixels) between the
+    mapped src point to its corresponding dst point, in order to be
+    considered as valid inlier.
+    :return:
+    img_pan – Panorama image built from two input images.
     """
-    # find central image
-    for i in range(0, len(origins)):
-        if origins[i] == (0, 0):
-            central_index = i
-            break
+    use_bilinear_interpolation = True
+    H_forward = compute_homography(mp_src, mp_dst, inliers_percent, max_err)
+    src_image_corners = convert_to_numpy(find_image_corners(img_src))
+    src_image_corners_mapped = np.matmul(H_forward, src_image_corners)  # 3x4 image corners after being mapped with the homography
+    src_image_corners_mapped = np.divide(src_image_corners_mapped, src_image_corners_mapped[2, :])  # divide by the last row
+    min_x = np.min(src_image_corners_mapped[0, :])
+    min_y = np.min(src_image_corners_mapped[1, :])
+    max_x = np.max(src_image_corners_mapped[0, :])
+    max_y = np.max(src_image_corners_mapped[1, :])
+    min_x = int(min_x)
+    min_y = int(min_y)
+    max_x = int(max_x)
+    max_y = int(max_y)
 
-    central_image = images[central_index]
-    central_origin = origins[central_index]
+    print(src_image_corners_mapped)
+    print("{} {} {} {}".format(min_x, min_y, max_x, max_y))
+    # find new image dimensions
+    dst_img_width = img_dst.shape[1]
+    dst_img_height = img_dst.shape[0]
+    src_img_width = img_src.shape[1]
+    src_img_height = img_src.shape[0]
+    panorama_dim_width = max(dst_img_width, max_x) - min(0, min_x)
+    panorama_dim_height = max(dst_img_height, max_y) - min(0, min_y)
+    panorama_img = np.zeros([panorama_dim_height, panorama_dim_width, 3], dtype=int)
+    print("final panorama size [{}]".format(panorama_img.shape))
+    # place the src image in the result image
+    width_diff = (-min_x if min_x < 0 else 0)
+    height_diff = (-min_y if min_y < 0 else 0)
+    panorama_img[height_diff:(dst_img_height + height_diff), width_diff:(dst_img_width + width_diff)] = img_dst
 
-    # zip origins and images together
-    zipped = zip(origins, images)
+    H_backward = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
+    for x in range(panorama_dim_width):
+        for y in range(panorama_dim_height):
+            if width_diff <= x < (dst_img_width + width_diff) and height_diff <= y < (dst_img_height + height_diff):
+                continue
+            pixel_mapped = np.matmul(H_backward, np.transpose(np.array([x - width_diff, y - height_diff, 1])))
+            pixel_mapped = np.divide(pixel_mapped, pixel_mapped[2])
+            pixel_mapped_x = pixel_mapped[0]#int(pixel_mapped[0])
+            pixel_mapped_y = pixel_mapped[1]#int(pixel_mapped[1])
+            if 0 <= pixel_mapped_x < src_img_width and 0 <= pixel_mapped_y < src_img_height:
+                if use_bilinear_interpolation:
+                    panorama_img[y, x, :] = bilinear_interpolate(img_src, pixel_mapped_x, pixel_mapped_y)
+                else:
+                    panorama_img[y, x, :] = img_src[pixel_mapped_y, pixel_mapped_x, :]
 
-    # sort by distance from origin (highest to lowest)
-    func = lambda x: math.sqrt(x[0][0] ** 2 + x[0][1] ** 2)
-    dist_sorted = sorted(zipped, key=func, reverse=True)
-    # sort by x value
-    x_sorted = sorted(zipped, key=lambda x: x[0][0])
-    # sort by y value
-    y_sorted = sorted(zipped, key=lambda x: x[0][1])
-
-    # determine the coordinates in the new frame of the central image
-    #if x_sorted[0][0][0] > 0:
-    cent_x = 0  # leftmost image is central image
-    #else:
-      #  cent_x = abs(x_sorted[0][0][0])
-
-    #if y_sorted[0][0][1] > 0:
-    #    cent_y = 0  # topmost image is central image
-    #else:
-    cent_y = 0# abs(y_sorted[0][0][1])
-
-    # make a new list of the starting points in new frame of each image
-    spots = []
-    for origin in origins:
-        spots.append((origin[0]+cent_x, origin[1] + cent_y))
-
-    zipped = zip(spots, images)
-
-    # get height and width of new frame
-    total_height = 0
-    total_width = 0
-
-    for spot, image in zipped:
-        total_width = max(total_width, spot[0]+image.shape[1])
-        total_height = max(total_height, spot[1]+image.shape[0])
-
-    # print "height ", total_height
-    # print "width ", total_width
-
-    # new frame of panorama
-    stitch = np.zeros((total_height, total_width, 4), np.uint8)
-
-    # stitch images into frame by order of distance
-    for image in dist_sorted:
-        # offset_y = image[0][1] + cent_y
-        # offset_x = image[0][0] + cent_x
-        # for i in range(0, image[1].shape[0]):
-        #     for j in range(0, image[1].shape[1]):
-        #         # print i, j
-        #         if image[1][i][j][3] != 0 :
-        #             stitch[i+offset_y][j+offset_x][:4] = image[1][i][j]
-
-        offset_y = image[0][1] + cent_y
-        offset_x = image[0][0] + cent_x
-        end_y = offset_y + image[1].shape[0]
-        end_x = offset_x + image[1].shape[1]
-        stitch[offset_y:end_y, offset_x:end_x, :4] = image[1]
-
-    return stitch
+    return panorama_img
