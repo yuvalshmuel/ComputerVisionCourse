@@ -59,6 +59,7 @@ def ptont_images_with_points(mp_src, mp_dst):
         axarr[1].scatter([each[0]], [each[1]], s=15)
     plt.show()
 
+
 ####################################
 # Part A
 ####################################
@@ -144,7 +145,7 @@ def compute_homography(mp_src, mp_dst, inliers_percent, max_err):
     :return:
     H – Projective transformation matrix from src to dst.
     """
-    d = 0.6
+    d = 0.5
     p = 0.99  # we require 95% success probability from RANSAC algorithm
     n = 4  # we need 4 matching pairs of points to solve an homography
     prob_any_outlier = 1 - math.pow(inliers_percent, n)
@@ -192,29 +193,31 @@ def bilinear_interpolate(im, x, y):
     :return:
     """
 
-    #x = np.asarray(x)
-    #y = np.asarray(y)
-
     x0 = np.floor(x).astype(int)
     x1 = x0 + 1
     y0 = np.floor(y).astype(int)
     y1 = y0 + 1
 
-    x0 = np.clip(x0, 0, im.shape[1]-1);
-    x1 = np.clip(x1, 0, im.shape[1]-1);
-    y0 = np.clip(y0, 0, im.shape[0]-1);
-    y1 = np.clip(y1, 0, im.shape[0]-1);
+    ax = np.array([x0, x1])
+    ax = np.clip(ax, 0, im.shape[1] - 1)
+    ay = np.array([y0, y1])
+    ay = np.clip(ay, 0, im.shape[0] - 1)
 
-    Ia = im[ y0, x0 ]
-    Ib = im[ y1, x0 ]
-    Ic = im[ y0, x1 ]
-    Id = im[ y1, x1 ]
+    Ia = im[ ay[0], ax[0] ]
+    Ib = im[ ay[1], ax[0] ]
+    Ic = im[ ay[0], ax[1] ]
+    Id = im[ ay[1], ax[1] ]
 
-    wa = (x1-x) * (y1-y)
-    wb = (x1-x) * (y-y0)
-    wc = (x-x0) * (y1-y)
-    wd = (x-x0) * (y-y0)
+    x1_x = (x1-x)
+    x_x0 = (x - x0)
+    y1_y = (y1-y)
+    y_y0 = (y - y0)
+    wa = x1_x * y1_y
+    wb = x1_x * y_y0
+    wc = x_x0 * y1_y
+    wd = x_x0 * y_y0
 
+    # return np.sum(np.multiply(np.array([[wa, wb, wc, wd],]*3), np.array([Ia, Ib, Ic, Id])), axis=0)
     return wa*Ia + wb*Ib + wc*Ic + wd*Id
 
 
@@ -265,18 +268,37 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     panorama_img[height_diff:(dst_img_height + height_diff), width_diff:(dst_img_width + width_diff)] = img_dst
 
     H_backward = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
-    for x in range(panorama_dim_width):
-        for y in range(panorama_dim_height):
-            if width_diff <= x < (dst_img_width + width_diff) and height_diff <= y < (dst_img_height + height_diff):
-                continue
-            pixel_mapped = np.matmul(H_backward, np.transpose(np.array([x - width_diff, y - height_diff, 1])))
-            pixel_mapped = np.divide(pixel_mapped, pixel_mapped[2])
-            pixel_mapped_x = pixel_mapped[0]#int(pixel_mapped[0])
-            pixel_mapped_y = pixel_mapped[1]#int(pixel_mapped[1])
-            if 0 <= pixel_mapped_x < src_img_width and 0 <= pixel_mapped_y < src_img_height:
-                if use_bilinear_interpolation:
-                    panorama_img[y, x, :] = bilinear_interpolate(img_src, pixel_mapped_x, pixel_mapped_y)
-                else:
-                    panorama_img[y, x, :] = img_src[pixel_mapped_y, pixel_mapped_x, :]
+    X, Y = np.mgrid[0:panorama_dim_height, 0:panorama_dim_width]
+    print(Y.ravel().shape)
+    img_points = np.vstack((X.ravel(), Y.ravel(), np.ones(Y.ravel().shape[0])))
+    print(img_points.shape)
+    print(img_points[:, 0:10])
+    img_points_keep_indices = np.where(np.logical_or(img_points[0, :] >= (dst_img_width + width_diff), np.logical_or(img_points[0, :] < width_diff, np.logical_or(img_points[1, :] >= (dst_img_height + height_diff), img_points[1, :] < height_diff))))
+    img_points_keep_indices = img_points_keep_indices[0]  # dereference tuple
+    print(img_points_keep_indices.shape)
+    print(img_points_keep_indices[0:10])
+    img_points = np.array(img_points[:, img_points_keep_indices], dtype=int)
+    print("img_points:::")
+    print(img_points.shape)
+    print(img_points[0:10])
+    img_points_shifted = np.array(img_points)
+    img_points_shifted[0, :] = img_points_shifted[0, :] - width_diff
+    img_points_shifted[1, :] = img_points_shifted[1, :] - height_diff
+    img_points_mapped = np.matmul(H_backward, img_points_shifted)
+    img_points_mapped = np.divide(img_points_mapped, img_points_mapped[2, :])
+    print(img_points_mapped.shape)
+    print(img_points_mapped[:,:10])
+    for i in range(img_points_mapped.shape[1]):
+        img_point_x = img_points[0][i]
+        img_point_y = img_points[1][i]
+        # print("{} {}".format(img_point_x, img_point_y))
+        pixel_mapped_x = img_points_mapped[0][i]  # int(pixel_mapped[0])
+        pixel_mapped_y = img_points_mapped[1][i]  # int(pixel_mapped[1])
+        # print("{} {}".format(int(pixel_mapped_x), int(pixel_mapped_y)))
+        if 0 <= pixel_mapped_x < src_img_width and 0 <= pixel_mapped_y < src_img_height:
+            if use_bilinear_interpolation:
+                panorama_img[img_point_y, img_point_x, :] = bilinear_interpolate(img_src, pixel_mapped_x, pixel_mapped_y)
+            else:
+                panorama_img[img_point_y, img_point_x, :] = img_src[int(pixel_mapped_y), int(pixel_mapped_x), :]
 
     return panorama_img
