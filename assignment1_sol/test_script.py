@@ -40,12 +40,19 @@ print(H_naive)
 image_corners = convert_to_numpy(find_image_corners(img_src))
 image_corners_mapped = np.matmul(H_naive, image_corners)  # 3x4 image corners after being mapped with the homography
 image_corners_mapped = np.divide(image_corners_mapped, image_corners_mapped[2,:])  # divide by the last row
-# find_image_size(mapped_points[0:1,:])
 min_x = np.min(image_corners_mapped[0,:])
 min_y = np.min(image_corners_mapped[1,:])
+max_x = np.min(image_corners_mapped[0,:])
+max_y = np.min(image_corners_mapped[1,:])
 min_x = int(min_x)
 min_y = int(min_y)
-img_src_padded = cv2.copyMakeBorder(img_src, -min_y if min_y < 0 else 0, 0, -min_x if min_x < 0 else 0, 0, cv2.BORDER_CONSTANT)
+max_x = int(max_x)
+max_y = int(max_y)
+border_top = -min_y if min_y < 0 else 0
+border_bottom = max(0, max_x - img_dst.shape[1])
+border_left = -min_x if min_x < 0 else 0
+border_right = max(0, max_y - img_dst.shape[0])
+img_src_padded = cv2.copyMakeBorder(img_src, border_top, border_bottom, border_left, border_right, cv2.BORDER_CONSTANT)
 img_src_mapped = cv2.warpPerspective(img_src_padded, H_naive, (img_src.shape[1], img_src.shape[0]))
 f, axarr = plt.subplots(1, 1)
 plt.axis('off')
@@ -97,7 +104,6 @@ panplot = plt.imshow(img_pan)
 plt.title('Great Panorama')
 plt.show()
 
-exit(0)
 
 ## Student Files
 #first run "create_matching_points.py" with your own images to create a mat file with the matching coordinates.

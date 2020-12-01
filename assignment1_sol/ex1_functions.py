@@ -2,12 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import math
+import cv2
 
 
 def find_image_corners(img):
     width = img.shape[1]
     height = img.shape[0]
-    corners = [[0, 0, height, height], [0, width, width, 0]]
+    corners = [[0, width, width, 0], [0, 0, height, height]]
     return corners
 
 
@@ -200,10 +201,10 @@ def bilinear_interpolate(im, x, y):
     ay = np.array([y0, y1])
     ay = np.clip(ay, 0, im.shape[0] - 1)
 
-    Ia = im[ ay[0], ax[0] ]
-    Ib = im[ ay[1], ax[0] ]
-    Ic = im[ ay[0], ax[1] ]
-    Id = im[ ay[1], ax[1] ]
+    Ia = im[ay[0], ax[0]]
+    Ib = im[ay[1], ax[0]]
+    Ic = im[ay[0], ax[1]]
+    Id = im[ay[1], ax[1]]
 
     x1_x = (x1-x)
     x_x0 = (x - x0)
@@ -214,8 +215,8 @@ def bilinear_interpolate(im, x, y):
     wc = x_x0 * y1_y
     wd = x_x0 * y_y0
 
-    # return np.sum(np.multiply(np.array([[wa, wb, wc, wd],]*3), np.array([Ia, Ib, Ic, Id])), axis=0)
-    return wa*Ia + wb*Ib + wc*Ic + wd*Id
+    return np.sum(np.multiply(np.transpose(np.array([Ia, Ib, Ic, Id])), np.transpose(np.array([wa, wb, wc, wd]))), axis=1)
+    # return wa*Ia + wb*Ib + wc*Ic + wd*Id
 
 
 def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
@@ -249,6 +250,14 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     max_x = int(max_x)
     max_y = int(max_y)
 
+    # img_src_padded = cv2.copyMakeBorder(img_src, -min_y if min_y < 0 else 0, 0, -min_x if min_x < 0 else 0, 0,
+    #                                     cv2.BORDER_CONSTANT)
+    # img_src_mapped = cv2.warpPerspective(img_src_padded, H_forward, (img_src.shape[1], img_src.shape[0]))
+    # f, axarr = plt.subplots(1, 1)
+    # plt.axis('off')
+    # axarr.imshow(img_src_mapped)
+    # plt.show()
+
     # find new image dimensions
     dst_img_width = img_dst.shape[1]
     dst_img_height = img_dst.shape[0]
@@ -263,7 +272,7 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     panorama_img[height_diff:(dst_img_height + height_diff), width_diff:(dst_img_width + width_diff)] = img_dst
 
     H_backward = compute_homography(mp_dst, mp_src, inliers_percent, max_err)
-    X, Y = np.mgrid[0:panorama_dim_height, 0:panorama_dim_width]
+    X, Y = np.mgrid[0:panorama_dim_width, 0:panorama_dim_height]
     img_points = np.vstack((X.ravel(), Y.ravel(), np.ones(Y.ravel().shape[0])))
     img_points_keep_indices = np.where(np.logical_or(img_points[0, :] >= (dst_img_width + width_diff), np.logical_or(img_points[0, :] < width_diff, np.logical_or(img_points[1, :] >= (dst_img_height + height_diff), img_points[1, :] < height_diff))))
     img_points_keep_indices = img_points_keep_indices[0]  # dereference tuple
@@ -273,7 +282,8 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
     img_points_shifted[1, :] = img_points_shifted[1, :] - height_diff
     img_points_mapped = np.matmul(H_backward, img_points_shifted)
     img_points_mapped = np.divide(img_points_mapped, img_points_mapped[2, :])
-    for i in range(img_points_mapped.shape[1]):
+    num_point = img_points_mapped.shape[1]
+    for i in range(num_point):
         img_point_x = img_points[0][i]
         img_point_y = img_points[1][i]
         pixel_mapped_x = img_points_mapped[0][i]  # int(pixel_mapped[0])
@@ -283,5 +293,8 @@ def panorama(img_src, img_dst, mp_src, mp_dst, inliers_percent, max_err):
                 panorama_img[img_point_y, img_point_x, :] = bilinear_interpolate(img_src, pixel_mapped_x, pixel_mapped_y)
             else:
                 panorama_img[img_point_y, img_point_x, :] = img_src[int(pixel_mapped_y), int(pixel_mapped_x), :]
+
+        if i % 100000 == 0:
+            print("[{}%]".format((i * 100) // num_point))
 
     return panorama_img
