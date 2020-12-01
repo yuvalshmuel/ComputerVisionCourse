@@ -28,7 +28,7 @@ matches = scipy.io.loadmat('matches') #matching points and some outliers
 match_p_dst = matches['match_p_dst'].astype(float)
 match_p_src = matches['match_p_src'].astype(float)
 
-ptont_images_with_points(match_p_src, match_p_dst)
+ptont_images_with_points('src.jpg', 'dst.jpg', match_p_src, match_p_dst)
 
 # Compute naive homography
 tt = time.time()
@@ -117,6 +117,8 @@ matches_test = scipy.io.loadmat('matches_test')
 
 match_p_dst = matches_test['match_p_dst']
 match_p_src = matches_test['match_p_src']
+
+ptont_images_with_points('src_test.jpg', 'dst_test.jpg', match_p_src, match_p_dst)
 
 # Build student panorama
 

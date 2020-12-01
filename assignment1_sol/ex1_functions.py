@@ -39,11 +39,11 @@ def find_image_size(points):
     return min_x, min_y, max_x, max_y
 
 
-def ptont_images_with_points(mp_src, mp_dst):
+def ptont_images_with_points(src_image_name, dst_image_name, mp_src, mp_dst):
     """ """
     # import the images
-    img_src = mpimg.imread('src.jpg')
-    img_dst = mpimg.imread('dst.jpg')
+    img_src = mpimg.imread(src_image_name)
+    img_dst = mpimg.imread(dst_image_name)
     # gather points
     src_points = convert_to_numpy(mp_src)
     dst_points = convert_to_numpy(mp_dst)
